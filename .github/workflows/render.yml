@@ -1,0 +1,61 @@
+
+name: Render Jensen Huang Documentary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    name: Render Documentary
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Extract Remotion ZIP
+        run: |
+          mkdir -p extracted
+          unzip -q jensen-huang-documentary.zip -d extracted
+
+          PROJECT_DIR="$(find extracted -name package.json -not -path '*/node_modules/*' -print -quit | xargs dirname)"
+
+          if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/package.json" ]; then
+            echo "ERROR: package.json not found inside ZIP"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project found at: $PROJECT_DIR"
+
+      - name: Install dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm install --no-audit --no-fund
+
+      - name: Install Remotion browser
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npx remotion browser ensure
+
+      - name: Render documentary
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          mkdir -p out
+          npx remotion render src/index.ts JensenHuangDocumentary out/jensen-huang-documentary.mp4
+
+      - name: Upload final MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jensen-Huang-Documentary-Final
+          path: ${{ env.PROJECT_DIR }}/out/jensen-huang-documentary.mp4
+          if-no-files-found: error
+          retention-days: 7
+          
